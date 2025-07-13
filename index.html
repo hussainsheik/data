@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Constituency Data Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.9/Babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+        }
+        .glow {
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const sampleData = [
+            { constituency: "Constituency A", totalFamilies: 1000, familyMembers: 4000, adoptedFamilies: 800, margadarsi: 600, adoptionRate: 80 },
+            { constituency: "Constituency B", totalFamilies: 1200, familyMembers: 4800, adoptedFamilies: 600, margadarsi: 400, adoptionRate: 50 },
+            { constituency: "Constituency C", totalFamilies: 900, familyMembers: 3600, adoptedFamilies: 450, margadarsi: 300, adoptionRate: 50 },
+        ];
+
+        const Dashboard = () => {
+            const [selectedConstituency, setSelectedConstituency] = useState("All Constituencies");
+            const [data, setData] = useState(sampleData);
+
+            useEffect(() => {
+                // Initialize Chart.js for Geographical Coverage
+                const geoChart = new Chart(document.getElementById('geoChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['High Adoption', 'Medium Adoption', 'Low Adoption'],
+                        datasets: [{
+                            data: [40, 35, 25],
+                            backgroundColor: ['#00ffcc', '#00ccff', '#ff6666'],
+                            borderWidth: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: '#e0e0e0' } }
+                        }
+                    }
+                });
+
+                // Initialize Chart.js for Family Adoption Status
+                const adoptionChart = new Chart(document.getElementById('adoptionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.map(d => d.constituency),
+                        datasets: [{
+                            label: 'Adopted Families',
+                            data: data.map(d => d.adoptedFamilies),
+                            backgroundColor: '#00ffcc',
+                            borderRadius: 8,
+                        }, {
+                            label: 'Families Yet to Adopt',
+                            data: data.map(d => d.totalFamilies - d.adoptedFamilies),
+                            backgroundColor: '#ff6666',
+                            borderRadius: 8,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { stacked: true, ticks: { color: '#e0e0e0' } },
+                            y: { stacked: true, ticks: { color: '#e0e0e0' } }
+                        },
+                        plugins: { legend: { labels: { color: '#e0e0e0' } } }
+                    }
+                });
+
+                // Initialize Chart.js for Margadarsi Mobilization
+                const margadarsiChart = new Chart(document.getElementById('margadarsiChart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.constituency),
+                        datasets: [{
+                            label: 'Margadarsi Mobilized',
+                            data: data.map(d => d.margadarsi),
+                            borderColor: '#00ccff',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: 'rgba(0, 204, 255, 0.2)',
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: { x: { ticks: { color: '#e0e0e0' } }, y: { ticks: { color: '#e0e0e0' } } },
+                        plugins: { legend: { labels: { color: '#e0e0e0' } } }
+                    }
+                });
+
+                return () => {
+                    geoChart.destroy();
+                    adoptionChart.destroy();
+                    margadarsiChart.destroy();
+                };
+            }, [data]);
+
+            const handleConstituencyChange = (e) => {
+                setSelectedConstituency(e.target.value);
+                if (e.target.value === "All Constituencies") {
+                    setData(sampleData);
+                } else {
+                    setData(sampleData.filter(d => d.constituency === e.target.value));
+                }
+            };
+
+            const stats = data.reduce((acc, d) => ({
+                totalFamilies: acc.totalFamilies + d.totalFamilies,
+                familyMembers: acc.familyMembers + d.familyMembers,
+                adoptedFamilies: acc.adoptedFamilies + d.adoptedFamilies,
+                margadarsi: acc.margadarsi + d.margadarsi,
+                adoptionRate: ((acc.adoptedFamilies + d.adoptedFamilies) / (acc.totalFamilies + d.totalFamilies) * 100).toFixed(1)
+            }), { totalFamilies: 0, familyMembers: 0, adoptedFamilies: 0, margadarsi: 0, adoptionRate: 0 });
+
+            return (
+                <div className="min-h-screen p-6">
+                    <h1 className="text-4xl font-bold text-center mb-6 text-cyan-300 glow">
+                        Constituency Data Dashboard
+                    </h1>
+                    <p className="text-center text-gray-400 mb-8">
+                        Interactive visualization of family adoption and coverage metrics
+                    </p>
+
+                    <div className="mb-8">
+                        <select
+                            className="w-full max-w-xs p-2 rounded-lg bg-gray-800 text-white border border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            value={selectedConstituency}
+                            onChange={handleConstituencyChange}
+                        >
+                            <option>All Constituencies</option>
+                            {sampleData.map(d => (
+                                <option key={d.constituency}>{d.constituency}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="card p-6 rounded-lg">
+                            <h2 className="text-xl font-semibold text-cyan-300 mb-4">Geographical Coverage</h2>
+                            <canvas id="geoChart"></canvas>
+                        </div>
+
+                        <div className="card p-6 rounded-lg">
+                            <h2 className="text-xl font-semibold text-cyan-300 mb-4">Family Adoption Statistics</h2>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-2xl font-bold text-cyan-200">{stats.totalFamilies}</p>
+                                    <p>Total Families</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-cyan-200">{stats.familyMembers}</p>
+                                    <p>Total Family Members</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-cyan-200">{stats.adoptedFamilies}</p>
+                                    <p>Adopted Families</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-cyan-200">{stats.totalFamilies - stats.adoptedFamilies}</p>
+                                    <p>Families Yet to Adopt</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-cyan-200">{stats.margadarsi}</p>
+                                    <p>Margadarsi Mobilized</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-cyan-200">{stats.adoptionRate}%</p>
+                                    <p>Family Adoption Rate</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="card p-6 rounded-lg">
+                            <h2 className="text-xl font-semibold text-cyan-300 mb-4">Family Adoption Status</h2>
+                            <canvas id="adoptionChart"></canvas>
+                        </div>
+
+                        <div className="card p-6 rounded-lg">
+                            <h2 className="text-xl font-semibold text-cyan-300 mb-4">Margadarsi Mobilization</h2>
+                            <canvas id="margadarsiChart"></canvas>
+                        </div>
+
+                        <div className="card p-6 rounded-lg col-span-1 lg:col-span-2">
+                            <h2 className="text-xl font-semibold text-cyan-300 mb-4">Detailed Constituency Data</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="text-cyan-300">
+                                            <th className="p-2">Constituency Name</th>
+                                            <th className="p-2">Total Families</th>
+                                            <th className="p-2">Family Members</th>
+                                            <th className="p-2">Adopted Families</th>
+                                            <th className="p-2">Families Yet to Adopt</th>
+                                            <th className="p-2">Margadarsi Mobilized</th>
+                                            <th className="p-2">Adoption Rate</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {data.map(d => (
+                                            <tr key={d.constituency} className="border-t border-gray-700">
+                                                <td className="p-2">{d.constituency}</td>
+                                                <td className="p-2">{d.totalFamilies}</td>
+                                                <td className="p-2">{d.familyMembers}</td>
+                                                <td className="p-2">{d.adoptedFamilies}</td>
+                                                <td className="p-2">{d.totalFamilies - d.adoptedFamilies}</td>
+                                                <td className="p-2">{d.margadarsi}</td>
+                                                <td className="p-2">{d.adoptionRate}%</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>
