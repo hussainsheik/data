@@ -14,6 +14,7 @@
             --darker: #050510;
             --light: #e0e0ff;
             --accent: #7b2dff;
+            --margadarsi: #ff9f43;
         }
         
         body {
@@ -151,7 +152,7 @@
         }
         
         .stat-value {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 700;
             margin: 10px 0;
             color: var(--primary);
@@ -262,7 +263,7 @@
         
         @media (max-width: 1200px) {
             .stat-card {
-                grid-column: span 6;
+                grid-column: span 4;
             }
             
             .chart-card {
@@ -276,7 +277,17 @@
             }
             
             .stat-card {
+                grid-column: span 6;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .stat-card {
                 grid-column: span 12;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
             }
         }
     </style>
@@ -325,10 +336,18 @@
                 <div class="stat-value" id="total-yet-to-adopt">--</div>
                 <div class="stat-label">Yet To Adopt</div>
             </div>
+            <div class="card stat-card">
+                <div class="stat-value" id="total-mobilized">--</div>
+                <div class="stat-label">Margadarsi Mobilized</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-value" id="adoption-rate">--</div>
+                <div class="stat-label">Adoption Rate</div>
+            </div>
             
             <div class="card chart-card">
                 <div class="card-header">
-                    <h3 class="card-title">Families Distribution</h3>
+                    <h3 class="card-title">Families & Adoption Distribution</h3>
                 </div>
                 <canvas id="families-chart"></canvas>
             </div>
@@ -370,11 +389,12 @@
                                 <th>Adopted</th>
                                 <th>Yet to Adopt</th>
                                 <th>Margadarsi Mobilized</th>
+                                <th>Adoption Rate</th>
                             </tr>
                         </thead>
                         <tbody id="data-table-body">
                             <tr>
-                                <td colspan="8" class="loading">Loading data...</td>
+                                <td colspan="9" class="loading">Loading data...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -496,15 +516,20 @@
                             mandal = mandalMapping[mandalId] || '';
                         }
                         
+                        const totalFamilies = cells[2]?.v || 0;
+                        const totalAdopted = cells[4]?.v || 0;
+                        const adoptionRate = totalFamilies > 0 ? (totalAdopted / totalFamilies * 100) : 0;
+                        
                         return {
                             id: id,
                             secretariatName: secretariatName,
                             mandal: mandal,
-                            totalFamilies: cells[2]?.v || 0,
+                            totalFamilies: totalFamilies,
                             totalFamilyMembers: cells[3]?.v || 0,
-                            totalAdopted: cells[4]?.v || 0,
+                            totalAdopted: totalAdopted,
                             totalYetToAdopt: cells[5]?.v || 0,
-                            totalMargadarsiMobilized: cells[6]?.v || 0
+                            totalMargadarsiMobilized: cells[6]?.v || 0,
+                            adoptionRate: adoptionRate
                         };
                     });
                     
@@ -520,7 +545,7 @@
                 })
                 .catch(err => {
                     console.error('Error loading data:', err);
-                    dataTableBody.innerHTML = '<tr><td colspan="8" style="color: #ff5555;">Error loading data. Please check console for details.</td></tr>';
+                    dataTableBody.innerHTML = '<tr><td colspan="9" style="color: #ff5555;">Error loading data. Please check console for details.</td></tr>';
                 });
         }
         
@@ -600,11 +625,15 @@
             const totalMembers = filteredData.reduce((sum, item) => sum + (item.totalFamilyMembers || 0), 0);
             const totalAdopted = filteredData.reduce((sum, item) => sum + (item.totalAdopted || 0), 0);
             const totalYetToAdopt = filteredData.reduce((sum, item) => sum + (item.totalYetToAdopt || 0), 0);
+            const totalMobilized = filteredData.reduce((sum, item) => sum + (item.totalMargadarsiMobilized || 0), 0);
+            const adoptionRate = totalFamilies > 0 ? (totalAdopted / totalFamilies * 100) : 0;
             
             document.getElementById('total-families').textContent = totalFamilies.toLocaleString();
             document.getElementById('total-members').textContent = totalMembers.toLocaleString();
             document.getElementById('total-adopted').textContent = totalAdopted.toLocaleString();
             document.getElementById('total-yet-to-adopt').textContent = totalYetToAdopt.toLocaleString();
+            document.getElementById('total-mobilized').textContent = totalMobilized.toLocaleString();
+            document.getElementById('adoption-rate').textContent = `${adoptionRate.toFixed(1)}%`;
         }
         
         // Update all charts
@@ -623,13 +652,21 @@
             const secretariatGroups = {};
             filteredData.forEach(item => {
                 if (!secretariatGroups[item.secretariatName]) {
-                    secretariatGroups[item.secretariatName] = 0;
+                    secretariatGroups[item.secretariatName] = {
+                        families: 0,
+                        adopted: 0,
+                        mobilized: 0
+                    };
                 }
-                secretariatGroups[item.secretariatName] += item.totalFamilies || 0;
+                secretariatGroups[item.secretariatName].families += item.totalFamilies || 0;
+                secretariatGroups[item.secretariatName].adopted += item.totalAdopted || 0;
+                secretariatGroups[item.secretariatName].mobilized += item.totalMargadarsiMobilized || 0;
             });
             
             const labels = Object.keys(secretariatGroups);
-            const data = Object.values(secretariatGroups);
+            const familiesData = labels.map(label => secretariatGroups[label].families);
+            const adoptedData = labels.map(label => secretariatGroups[label].adopted);
+            const mobilizedData = labels.map(label => secretariatGroups[label].mobilized);
             
             if (familiesChart) {
                 familiesChart.destroy();
@@ -639,20 +676,42 @@
                 type: 'bar',
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: 'Total Families',
-                        data: data,
-                        backgroundColor: 'rgba(0, 247, 255, 0.6)',
-                        borderColor: 'rgba(0, 247, 255, 1)',
-                        borderWidth: 1
-                    }]
+                    datasets: [
+                        {
+                            label: 'Total Families',
+                            data: familiesData,
+                            backgroundColor: 'rgba(0, 247, 255, 0.6)',
+                            borderColor: 'rgba(0, 247, 255, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Adopted Families',
+                            data: adoptedData,
+                            backgroundColor: 'rgba(123, 45, 255, 0.6)',
+                            borderColor: 'rgba(123, 45, 255, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Margadarsi Mobilized',
+                            data: mobilizedData,
+                            backgroundColor: 'rgba(255, 159, 67, 0.6)',
+                            borderColor: 'rgba(255, 159, 67, 1)',
+                            borderWidth: 1,
+                            type: 'line',
+                            tension: 0.4,
+                            fill: false
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            display: false
+                            position: 'top',
+                            labels: {
+                                color: 'rgba(224, 224, 255, 0.8)'
+                            }
                         },
                         tooltip: {
                             callbacks: {
@@ -691,6 +750,7 @@
             
             const totalAdopted = filteredData.reduce((sum, item) => sum + (item.totalAdopted || 0), 0);
             const totalYetToAdopt = filteredData.reduce((sum, item) => sum + (item.totalYetToAdopt || 0), 0);
+            const totalMobilized = filteredData.reduce((sum, item) => sum + (item.totalMargadarsiMobilized || 0), 0);
             
             if (adoptionChart) {
                 adoptionChart.destroy();
@@ -699,16 +759,18 @@
             adoptionChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Adopted', 'Yet to Adopt'],
+                    labels: ['Adopted', 'Yet to Adopt', 'Margadarsi Mobilized'],
                     datasets: [{
-                        data: [totalAdopted, totalYetToAdopt],
+                        data: [totalAdopted, totalYetToAdopt, totalMobilized],
                         backgroundColor: [
                             'rgba(123, 45, 255, 0.8)',
-                            'rgba(255, 0, 228, 0.8)'
+                            'rgba(255, 0, 228, 0.8)',
+                            'rgba(255, 159, 67, 0.8)'
                         ],
                         borderColor: [
                             'rgba(123, 45, 255, 1)',
-                            'rgba(255, 0, 228, 1)'
+                            'rgba(255, 0, 228, 1)',
+                            'rgba(255, 159, 67, 1)'
                         ],
                         borderWidth: 1
                     }]
@@ -750,7 +812,8 @@
                         families: 0,
                         members: 0,
                         adopted: 0,
-                        yetToAdopt: 0
+                        yetToAdopt: 0,
+                        mobilized: 0
                     };
                 }
                 
@@ -758,13 +821,13 @@
                 mandalGroups[item.mandal].members += item.totalFamilyMembers || 0;
                 mandalGroups[item.mandal].adopted += item.totalAdopted || 0;
                 mandalGroups[item.mandal].yetToAdopt += item.totalYetToAdopt || 0;
+                mandalGroups[item.mandal].mobilized += item.totalMargadarsiMobilized || 0;
             });
             
             const labels = Object.keys(mandalGroups);
             const familiesData = labels.map(label => mandalGroups[label].families);
             const membersData = labels.map(label => mandalGroups[label].members);
-            const adoptedData = labels.map(label => mandalGroups[label].adopted);
-            const yetToAdoptData = labels.map(label => mandalGroups[label].yetToAdopt);
+            const mobilizedData = labels.map(label => mandalGroups[label].mobilized);
             
             if (mandalComparisonChart) {
                 mandalComparisonChart.destroy();
@@ -790,6 +853,14 @@
                             borderColor: 'rgba(123, 45, 255, 1)',
                             borderWidth: 1,
                             pointBackgroundColor: 'rgba(123, 45, 255, 1)'
+                        },
+                        {
+                            label: 'Margadarsi Mobilized',
+                            data: mobilizedData,
+                            backgroundColor: 'rgba(255, 159, 67, 0.2)',
+                            borderColor: 'rgba(255, 159, 67, 1)',
+                            borderWidth: 1,
+                            pointBackgroundColor: 'rgba(255, 159, 67, 1)'
                         }
                     ]
                 },
@@ -852,18 +923,15 @@
             }
             
             mobilizationChart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
                         label: 'Margadarsi Mobilized',
                         data: data,
-                        backgroundColor: 'rgba(255, 0, 228, 0.2)',
-                        borderColor: 'rgba(255, 0, 228, 1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        pointBackgroundColor: 'rgba(255, 0, 228, 1)'
+                        backgroundColor: 'rgba(255, 159, 67, 0.6)',
+                        borderColor: 'rgba(255, 159, 67, 1)',
+                        borderWidth: 1
                     }]
                 },
                 options: {
@@ -907,7 +975,7 @@
         // Update data table
         function updateTable() {
             if (filteredData.length === 0) {
-                dataTableBody.innerHTML = '<tr><td colspan="8">No data available for the selected filters</td></tr>';
+                dataTableBody.innerHTML = '<tr><td colspan="9">No data available for the selected filters</td></tr>';
                 return;
             }
             
@@ -923,6 +991,7 @@
                         <td>${item.totalAdopted.toLocaleString()}</td>
                         <td>${item.totalYetToAdopt.toLocaleString()}</td>
                         <td>${item.totalMargadarsiMobilized.toLocaleString()}</td>
+                        <td>${item.adoptionRate.toFixed(1)}%</td>
                     </tr>
                 `;
             });
